@@ -1,0 +1,133 @@
+administrator@miempresa.local
+
+DASHBOARD:
+
+IE ENHANCED -> OFF
+
+#Para poner zoom
+Nos vamos a internet explorer:
+sysinternals suite -> descargar (24.3 MB) -> guardar como
+buscamos zoomlt en la carpeta descargada y ejecutamos
+
+cambiamos nombre maquina
+shutdown -r -t 0 (reinicia y le ponemos "-t 0" para que reinicie directamente sin esperar)
+
+HACER CONTROLADOR DE DOMINIO
+#instalar rol y caracteristica
+add roles and feature (next) -> basado en instalacion [1a opcion] (next) -> next -> marcar Active directory domain server -> next next next y marcarle que se reinicie
+te pedira configurar controlador de dominio -> añadir nuevo bosque -> nombre raiz: DOMA.local (next) -> 2012 y que este marcado DNS -> contra(next) -> next -> netbios: DOMA(next) -> next
+
+Requisitos para meter máquina en el dominio:
+
+. DNS cliente debe apuntar al controlador dominio (CD)
+. Cuenta de usuario válida para introducir máquinas al dominio
+
+Meter otro equipo en un dominio:
+
+Acceder con dominio (Administrator@DOMA.local)
+Herramientas -> Usuarios y equipos de directorio activo
+Hacer sysprep para que no se te reinicien los cambios por el tema de la licencia:
+cd \Windows\system32\sysprep\sysprep.exe -> enter system audit mode (marcar generalize) HACER ANTES DE NADA
+
+Crear usuario:
+en esta carpeta -> click derecho a la carpeta users -> nuevo -> crear user (usuario1)
+
+En la maquina que queremos meter(W16 server core) -> sconfig -> 8(network settings) -> seleccionar numero de adaptador (1 normalmente) -> 2 (cambiar DNS) Prefered: (ip controlador) Alternate: (otra ip controlador) -> volvemos al menu principal -> 1 D DOMA.local DOMA\usuario1 -> No necesitamos cambiar nombre de maquina -> OK -> Para ver si se ha hecho: mirar si esta en Computers
+
+ping (nombremaquina).DOMA.local (desde dueño)
+Si no responde, desactivar firewall de cliente: netsh -> advfirewall -> set allprofiles state off
+
+Administrar -> Agregar servidor -> Buscar -> Metemos la máquina que queramos -> Ahora en "todos los servidores" podremos manejarlo con click derecho.
+
+Click derecho al nuevo cliente -> Administracion de equipos -> usuarios y grupos locales -> grupos -> remote desktop users -> agregar (en ubicaciones ponemos users) -> usuario1@DOMA.local -> ahora puede conectarse poniendo usuario1@DOMA.local
+
+---------------------------------------------------------------------------
+RELACIONES DE CONFIANZA
+Cuando un DC confia en otro, permite que se puedan relacionar y tener usuarios que puedan iniciar sesión en ambos DC.
+-Bidireccional: Ambos DC confían mutuamente y no hay restricciones a la hora de hacer operaciones entre ambos.
+-Unidireccional: Sólo un DC confía en el otro y le permito acceso a sus usuarios y recursos.
+
+1. reenviadores condicionales
+Herramientas -> DNS -> y creamos un nuevo reenviador condicional con el DOMx.local de la otra máquina.
+Hacer en las dos máquinas.
+2. creacion relacion confi
+Dominios y confianzas de directorio activo->click derecho en nuestro dominio->propiedades->confianzas->nueva confianza
+ponemos dominio de la maquina con la cual queremos hacer la relacion
+
+#Unidireccional
+Confianza externa, esta pensado para entidades empresariales distintas.
+Confianza de bosque, esta pensando para entidades que se encuentran en la misma estructura.
+
+#Ejemplo.
+DOMA uni salida y DOMB uni entrada.
+DOMB puede acceder a los recursos compartidos de DOMA
+DOMA puede administrar los usuarios de DOMB
+
+
+Unidireccional de salida. (Yo confio en el otro, por lo que el otro puede acceder a mis recursos.)
+Solo este dominio.
+En el otro dominio.
+Unidireccional de entrada (quien quiera entrar en otro sitio)
+
+#Bidireccional
+Confianza de bosque->bidireccional->ambos->credenciales del dominio con el que queremos hacer la relación para que se haga en ambos extremos automáticamente->autenticación en todo el bosque
+
+#Selectiva
+Con esta opción podremos seleccionar los permisos de cada usuario y a que usuario se le aplica.
+Metete en usuarios y equipos de active directory > domain controller y click derecho a propiedades al que este dentro > seguridad
+
+--------------------------------------------------------------------------
+COMPARTIR RECURSOS ENTRE DOMINIOS
+Teniendo ya la relación de confi, vamos a compartir una carpeta.
+crear carpeta en C: -> click d -> uso compartido avanzado -> marcamos compartir carpeta -> permisos -> quitamos a todos y añadimos los users del dominio propio, del otro dominio y ambos grupos de admins
+
+Para ver recursos desde el cliente del entrante:
+
+net view \\(ip del saliente, que es el que esta compartiendo recursos)
+
+Y si queremos añadir cosas:
+net use Z: \\(ip saliente)\(nombre carpeta compartida) /user:DOMB\usuario1b (*)
+Z:
+echo "hola.txt" > adios.txt
+* Ponemos el usuario al que le hemos dado permiso, que se ve dandole click derecho a la carpeta de DOMA y viendo quien tiene permiso.
+
+---------------------------------------------------------------------------
+SUBDOMINIO
+Dividir estructura principal en varias zonas.
+add roles and feature (next) -> basado en instalacion [1a opcion] (next) -> next -> marcar Active directory domain server -> next next next y marcarle que se reinicie
+te pedira configurar controlador de dominio -> añadir nuevo dominio a un bosque existente -> seleccionar tipo de dominio:dominio secundario -> cambiar -> loguemos como admin del dominio al que nos unimos
+
+El dominio al que nos hemos unido puede administrar al subdominio creado y acceder a sus recursos, pero no al contrario.
+
+---------------------------------------------------------------------------
+POLÍTICAS
+Creamos una unidad organizativa [aunque tb pueden aplicarse a usuarios específicos] -> usuarios y equipos de directorio activo -> click derecho sobre nuestro dominio -> nuevo -> crear unidad organizativa -> A esta carpeta se le pueden asignar grupos
+
+Para crear una política (administracion de directivas de grupo) [en administrador del servidor]:
+
+ - O click derecho a la carpeta creada y crear GPO
+ - o click derecho en objetos de directiva de grupo y luego asignarla donde queramos
+
+Si lo hacemos sobre la carpeta: nombre de política -> por ejemplo, CTRL+SUP -> editar -> 
+
+Sobre el core: gpupdate /force (para actualizar politicas)
+	       gpresult /R (para ver las politicas que se estan aplicando)
+
+---------------------------------------------------------------------------
+VOLUMEN REFLEJADO
+Administrador de equipos -> Administrador de discos -> click derecho a discos y los convertimos a dinámicos -> volvemos a hacer click derecho y nos saldra la nueva opcion crear un nuevo volumen reflejado -> configuramos creacion.
+administracion directivas de grupo -> nuestra unidad organizativa -> redirigir la carpeta a una misma ubicación
+
+---------------------------------------------------------------------------
+SERVIDOR DE RESPALDO
+
+- Solo lectura: Es como un back-up, si se te jode vuelcas la info
+- Lectura y escritura con DNS, si se jode directamente empezaría a actuar: añadiendo un bosque existente
+
+ADMINISTRAR DESDE OTRO DOMINIO
+
+Usuarios y equipos de directorio activo > Builtin > click derecho a administrators > propiedades > añadimos administrator del otro dominio
+
+CAMBIAR A CONFIANZA SELECTIVA
+
+

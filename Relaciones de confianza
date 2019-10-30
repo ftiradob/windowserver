@@ -1,0 +1,16 @@
+RELACIONES DE CONFIANZA ENTRE CONTROLADORES DE DOMINIO
+
+Nos metemos en Administrador de DNS y creamos un nuevo reenviador condicional con el DOMx.local de la otra máquina.
+Hacer en las dos máquinas.
+
+#Confianza directorio activo.
+Nueva confianza
+Confianza externa, para que solo confie en el que he indicado.
+Unidireccional de salida. (en el sitio que "da sus llaves")
+Solo este dominio.
+
+En el otro dominio.
+Unidireccional de entrada (porque es quien "recibe las llaves")
+
+Si lo hacemos en modo selectivo, tenemos que seleccionar los permisos de cada usuario.
+
